@@ -12,6 +12,8 @@ def parse_args():
     parser.add_argument('-prompt_freq', type=int, default=2, help='frequency of giving prompt in 3D images')
     parser.add_argument('-pretrain', type=str, default=None, help='path of pretrain weights')
     parser.add_argument('-val_freq',type=int,default=5,help='interval between each validation')
+    parser.add_argument('--debug', action='store_true', help='Use a small subset of data for debugging')
+    parser.add_argument('--subset_size', type=int, default=10, help='Number of samples to use for debugging')
     parser.add_argument('-gpu', type=bool, default=True, help='use gpu or not')
     parser.add_argument('-gpu_device', type=int, default=0, help='use which gpu')
     parser.add_argument('-image_size', type=int, default=1024, help='image_size')
