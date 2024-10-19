@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 from func_3d.utils import random_click, generate_bbox
 
 
-class ProstateMRIDataset(Dataset):
+class ProstateMRI(Dataset):
     def __init__(self, args, data_path, transform=None, transform_msk=None, mode='Training', prompt='click', seed=None, variation=0):
         # Set the data list for training
         self.name_list = os.listdir(os.path.join(data_path, mode, 'images'))
@@ -29,7 +29,6 @@ class ProstateMRIDataset(Dataset):
 
     def __getitem__(self, index):
         point_label = 1
-        newsize = (self.img_size, self.img_size)
 
         # Get the images and masks
         name = self.name_list[index]
@@ -48,7 +47,8 @@ class ProstateMRIDataset(Dataset):
             img_dcm = pydicom.dcmread(os.path.join(img_path, f'{frame_index + 1}.dcm'))
             img = img_dcm.pixel_array
             img = Image.fromarray(img).convert('RGB')
-            img = img.resize(newsize)
+            if self.transform:
+                img = self.transform(img)
             img = torch.tensor(np.array(img)).permute(2, 0, 1)
             img_tensor[frame_index, :, :, :] = img
 
@@ -58,7 +58,8 @@ class ProstateMRIDataset(Dataset):
                 mask_dcm = pydicom.dcmread(os.path.join(mask_path, f'{mask_type}_{frame_index + 1}.dcm'))
                 mask = mask_dcm.pixel_array
                 obj_mask = Image.fromarray(mask)
-                obj_mask = obj_mask.resize(newsize)
+                if self.transform_msk:
+                    obj_mask = self.transform_msk(obj_mask)
                 obj_mask = torch.tensor(np.array(obj_mask)).unsqueeze(0).int()
                 diff_obj_mask_dict[mask_type] = obj_mask
 
