@@ -65,7 +65,7 @@ def main():
     logger = create_logger(args.path_helper['log_path'])
     logger.info(args)
 
-    nice_train_loader, nice_test_loader = get_dataloader(args)
+    nice_train_loader, nice_test_loader, nice_val_loader = get_dataloader(args)
 
     '''checkpoint path and tensorboard'''
     checkpoint_path = os.path.join(settings.CHECKPOINT_PATH, args.net, settings.TIME_NOW)
@@ -102,7 +102,19 @@ def main():
             tol, (eiou, edice) = function.validation_sam(args, nice_test_loader, epoch, net, writer)
             
             logger.info(f'Total score: {tol}, IOU: {eiou}, DICE: {edice} || @ epoch {epoch}.')
+            
+            # Optional: Run additional validation on the validation set
+            logger.info(f'Running validation set evaluation for epoch {epoch}')
+            with torch.no_grad():
+                for batch in nice_val_loader:
+                    images = batch['image']
+                    labels = batch['label']
 
+                    if torch.cuda.is_available():
+                        images = images.cuda()
+                        labels = {k: {m: v.cuda() for m, v_dict in labels.items()}}
+
+                    outputs = net(images)
             torch.save({'model': net.state_dict()}, os.path.join(args.path_helper['ckpt_path'], 'latest_epoch.pth'))
 
     writer.close()
