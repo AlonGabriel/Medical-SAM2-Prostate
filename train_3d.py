@@ -102,7 +102,7 @@ def main():
             tol, (eiou, edice) = function.validation_sam(args, nice_test_loader, epoch, net, writer)
             
             logger.info(f'Total score: {tol}, IOU: {eiou}, DICE: {edice} || @ epoch {epoch}.')
-            
+
             # Optional: Run additional validation on the validation set
             logger.info(f'Running validation set evaluation for epoch {epoch}')
             with torch.no_grad():
@@ -112,8 +112,12 @@ def main():
 
                     if torch.cuda.is_available():
                         images = images.cuda()
-                        labels = {k: {m: v.cuda() for m, v_dict in labels.items()}}
-
+                        # Iterate through each key-value pair in the nested dictionary
+                        for k, v_dict in labels.items():
+                                if isinstance(v_dict, dict):
+                                    for m, v in v_dict.items():
+                                        if isinstance(v, torch.Tensor):
+                                            labels[k][m] = v.cuda()
                     outputs = net(images)
             torch.save({'model': net.state_dict()}, os.path.join(args.path_helper['ckpt_path'], 'latest_epoch.pth'))
 
