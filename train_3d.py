@@ -66,7 +66,19 @@ def main():
     logger.info(args)
 
     nice_train_loader, nice_test_loader, nice_val_loader = get_dataloader(args)
+    for pack in nice_train_loader:
+        images = pack['image']
+        labels = pack['label']
+        if 'bbox' in pack:
+            bbox = pack['bbox']
 
+        # Debug print to verify shapes and content
+        print(f"Images shape: {images.shape}")
+        print(f"Labels: {[k for k in labels.keys()]}")
+        if 'bbox' in pack:
+            print(f"BBox keys: {[k for k in bbox.keys()]}")
+
+        break  
     '''checkpoint path and tensorboard'''
     checkpoint_path = os.path.join(settings.CHECKPOINT_PATH, args.net, settings.TIME_NOW)
     #use tensorboard
@@ -84,7 +96,7 @@ def main():
     best_acc = 0.0
     best_tol = 1e4
     best_dice = 0.0
-
+    
     for epoch in range(settings.EPOCH):
 
         # if epoch < 5:

@@ -50,8 +50,8 @@ def get_dataloader(args):
         test_dataset = Subset(test_dataset, list(range(min(len(test_dataset), subset_size))))
 
     # Create dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=8, pin_memory=True)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=1, pin_memory=True)  # Use a smaller batch size for testing/validation
+    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=1, pin_memory=False)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1, pin_memory=False)
+    val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=1, pin_memory=False)  # Use a smaller batch size for testing/validation
 
     return train_loader, test_loader, val_loader

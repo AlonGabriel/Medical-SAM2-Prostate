@@ -80,8 +80,8 @@ def train_sam(args, net: nn.Module, optimizer1, optimizer2, train_loader,
             elif prompt == 'bbox':
                 bbox_dict = pack['bbox']
             imgs_tensor = imgs_tensor.squeeze(0)
-            imgs_tensor = imgs_tensor.to(dtype = torch.float32, device = GPUdevice)
-            
+            imgs_tensor = imgs_tensor.to(dtype=torch.float32, device=GPUdevice)
+
             train_state = net.train_init_state(imgs_tensor=imgs_tensor)
             prompt_frame_id = list(range(0, video_length, prompt_freq))
             obj_list = []
@@ -92,15 +92,14 @@ def train_sam(args, net: nn.Module, optimizer1, optimizer2, train_loader,
                 continue
 
             name = pack['image_meta_dict']['filename_or_obj']
-            # reverse = np.random.rand() > 0.5
 
             with torch.cuda.amp.autocast():
                 for id in prompt_frame_id:
                     for ann_obj_id in obj_list:
                         try:
                             if prompt == 'click':
-                                points = pt_dict[id][ann_obj_id].to(device=GPUdevice)
-                                labels = point_labels_dict[id][ann_obj_id].to(device=GPUdevice)
+                                points = pt_dict[id]['pt'].to(device=GPUdevice)
+                                labels = point_labels_dict[id]['point_label'].to(device=GPUdevice)
                                 _, _, _ = net.train_add_new_points(
                                     inference_state=train_state,
                                     frame_idx=id,
@@ -110,7 +109,9 @@ def train_sam(args, net: nn.Module, optimizer1, optimizer2, train_loader,
                                     clear_old_points=False,
                                 )
                             elif prompt == 'bbox':
-                                bbox = bbox_dict[id][ann_obj_id]
+                                bbox = bbox_dict[id].get('bbox', None)
+                                if bbox is None:
+                                    raise KeyError(f"No bounding box found for frame {id}")
                                 _, _, _ = net.train_add_new_bbox(
                                     inference_state=train_state,
                                     frame_idx=id,
@@ -123,8 +124,9 @@ def train_sam(args, net: nn.Module, optimizer1, optimizer2, train_loader,
                                 inference_state=train_state,
                                 frame_idx=id,
                                 obj_id=ann_obj_id,
-                                mask = torch.zeros(imgs_tensor.shape[2:]).to(device=GPUdevice),
+                                mask=torch.zeros(imgs_tensor.shape[1:]).to(device=GPUdevice),
                             )
+
                 video_segments = {}  # video_segments contains the per-frame segmentation results
             
                 for out_frame_idx, out_obj_ids, out_mask_logits in net.train_propagate_in_video(train_state, start_frame_idx=0):
