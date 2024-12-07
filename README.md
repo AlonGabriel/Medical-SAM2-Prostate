@@ -1,4 +1,4 @@
-<h1 align="center">● Medical SAM 2: Segment Medical Images As Video Via Segment Anything Model 2</h1>
+<h1 align="center">● Evaluating MedSAM-2 for Prostate MRI Segmentation</h1>
 
 <p align="center">
     <a href="https://discord.gg/DN4rvk95CC">
@@ -7,7 +7,7 @@
 </p>
 
 Medical SAM 2, or say MedSAM-2, is an advanced segmentation model that utilizes the [SAM 2](https://github.com/facebookresearch/segment-anything-2) framework to address both 2D and 3D medical
-image segmentation tasks. This method is elaborated on the paper [Medical SAM 2: Segment Medical Images As Video Via Segment Anything Model 2](https://arxiv.org/abs/2408.00874).
+image segmentation tasks. This model and methods were adapted in an attempt to use the model for segmentation of the prostate, as well as prostate lesions.
 
 ## 🔥 A Quick Overview 
  <div align="center"><img width="880" height="350" src="https://github.com/MedicineToken/Medical-SAM2/blob/main/vis/framework.png"></div>
@@ -27,52 +27,27 @@ image segmentation tasks. This method is elaborated on the paper [Medical SAM 2:
  
  ``bash download_ckpts.sh``
 
- Further Note: We tested on the following system environment and you may have to handle some issue due to system difference.
+ Further Note: The model was tested on the following system environment and you may have to handle some issue due to system difference.
 ```
 Operating System: Ubuntu 22.04
 Conda Version: 23.7.4
 Python Version: 3.12.4
 ```
-We released our pretrain weight [here](https://huggingface.co/jiayuanz3/MedSAM2_pretrain/tree/main)
+Download the MedSAM-2 pretrained weights [here](https://huggingface.co/jiayuanz3/MedSAM2_pretrain/tree/main)
 
  ## 🎯 Example Cases
- #### Download REFUGE or BCTV or your own dataset and put in the ``data`` folder, create the folder if it does not exist ⚒️
+ #### Download Prostate-MRI-US-Biopsy or your own dataset and put in the ``data`` folder, create the folder if it does not exist ⚒️
+
+**Step1:** Download the [prostate-MRI-US-Biopsy](https://portal.imaging.datacommons.cancer.gov/explore/filters/?collection_id=prostate_mri_us_biopsy) dataset from the Imaging Data Commons using instructions provided:
+
+**Step2:** Preprocess the data using the Data_preprocessing notebook.
+
+**Step3:** Run the training and validation by:
  
- ### 2D case - REFUGE Optic-cup Segmentation from Fundus Images
-
-**Step1:** Download pre-processed [REFUGE](https://refuge.grand-challenge.org/) dataset manually from [here](https://huggingface.co/datasets/jiayuanz3/REFUGE/tree/main), or using command lines:
-
- ``wget https://huggingface.co/datasets/jiayuanz3/REFUGE/resolve/main/REFUGE.zip``
-
- ``unzip REFUGE.zip``
-
- **Step2:** Run the training and validation by:
- 
-``python train_2d.py -net sam2 -exp_name REFUGE_MedSAM2 -vis 1 -sam_ckpt ./checkpoints/sam2_hiera_small.pt -sam_config sam2_hiera_s -image_size 1024 -out_size 1024 -b 4 -val_freq 1 -dataset REFUGE -data_path ./data/REFUGE``
-
- ### 3D case - Abdominal Multiple Organs Segmentation
- 
- **Step1:** Download pre-processed [BTCV](https://www.synapse.org/#!Synapse:syn3193805/wiki/217752) dataset manually from [here](https://huggingface.co/datasets/jiayuanz3/btcv/tree/main), or using command lines:
-
- ``wget https://huggingface.co/datasets/jiayuanz3/btcv/resolve/main/btcv.zip``
-
- ``unzip btcv.zip``
-
-**Step2:** Run the training and validation by:
+ ``python train_3d.py -exp_name prostate_mri_MedSAM2 -sam_ckpt ./checkpoints/sam2_hiera_small.pt -sam_config sam2_hiera_s -pretrain MedSAM2_pretrain.pth -image_size 1024 -dataset prostate_mri -data_path ./data/prostate_mri``
 
 
- ``python train_3d.py -net sam2 -exp_name BTCV_MedSAM2 -sam_ckpt ./checkpoints/sam2_hiera_small.pt -sam_config sam2_hiera_s -image_size 1024 -val_freq 1 -prompt bbox -prompt_freq 2 -dataset btcv -data_path ./data/btcv``
-
-
-## 🚨 News
-- 24-08-05. Our Medical SAM 2 paper **ranked #1 Paper of the day** collected by AK on Hugging Face 🤗
-- 24-08-05. Update 3D example details and pre-processed BTCV dataset download link 🔗
-- 24-08-05. Update 2D example details and pre-processed REFUGE dataset download link 🔗
-- 24-08-05. Our Medical SAM 2 paper was available online 🥳
-- 24-08-05. Our Medical SAM 2 code was available on Github 🥳
-- 24-07-30. The SAM 2 model was released 🤩
-
-## 📝 Cite
+## 📝 Citation
  ~~~
 @misc{zhu_medical_2024,
 	title={Medical SAM 2: Segment medical images as video via Segment Anything Model 2},
