@@ -36,3 +36,5 @@ def parse_args():
     opt = parser.parse_args()
 
     return opt
+
+# python train_3d.py -exp_name prostate_mri_MedSAM2 -sam_ckpt ./checkpoints/sam2_hiera_small.pt -sam_config sam2_hiera_s -pretrain MedSAM2_pretrain.pth -image_size 1024 -dataset prostate_mri -data_path ./data/prostate_mri -vis True --debug --subset_size 10 

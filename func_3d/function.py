@@ -71,6 +71,8 @@ def train_sam(args, net: nn.Module, optimizer1, optimizer2, train_loader,
 
     with tqdm(total=len(train_loader), desc=f'Epoch {epoch}', unit='img') as pbar:
         for pack in train_loader:
+            if pack is None:
+                continue  # Skip if pack is None
             torch.cuda.empty_cache()
             imgs_tensor = pack['image']
             mask_dict = pack['label']
@@ -79,14 +81,17 @@ def train_sam(args, net: nn.Module, optimizer1, optimizer2, train_loader,
                 point_labels_dict = pack['p_label']
             elif prompt == 'bbox':
                 bbox_dict = pack['bbox']
+            
             imgs_tensor = imgs_tensor.squeeze(0)
             imgs_tensor = imgs_tensor.to(dtype=torch.float32, device=GPUdevice)
 
             train_state = net.train_init_state(imgs_tensor=imgs_tensor)
             prompt_frame_id = list(range(0, video_length, prompt_freq))
+
             obj_list = []
             for id in prompt_frame_id:
-                obj_list += list(mask_dict[id].keys())
+                if id in mask_dict:
+                    obj_list += list(mask_dict[id].keys())
             obj_list = list(set(obj_list))
             if len(obj_list) == 0:
                 continue
@@ -94,7 +99,12 @@ def train_sam(args, net: nn.Module, optimizer1, optimizer2, train_loader,
             name = pack['image_meta_dict']['filename_or_obj']
 
             with torch.cuda.amp.autocast():
+                torch.autograd.set_detect_anomaly(True)
                 for id in prompt_frame_id:
+                    if id not in bbox_dict:
+                        print(f"No bounding box found for frame {id}. Skipping...")
+                        continue  # Skip frames without bounding boxes
+
                     for ann_obj_id in obj_list:
                         try:
                             if prompt == 'click':
@@ -111,7 +121,8 @@ def train_sam(args, net: nn.Module, optimizer1, optimizer2, train_loader,
                             elif prompt == 'bbox':
                                 bbox = bbox_dict[id].get('bbox', None)
                                 if bbox is None:
-                                    raise KeyError(f"No bounding box found for frame {id}")
+                                    print(f"No bounding box found for object {ann_obj_id} in frame {id}. Skipping...")
+                                    continue
                                 _, _, _ = net.train_add_new_bbox(
                                     inference_state=train_state,
                                     frame_idx=id,
@@ -120,14 +131,17 @@ def train_sam(args, net: nn.Module, optimizer1, optimizer2, train_loader,
                                     clear_old_points=False,
                                 )
                         except KeyError:
+                            print(f"KeyError for frame {id}, object {ann_obj_id}. Adding empty mask.")
+                            mask = torch.zeros(imgs_tensor.shape[1:]).to(device=GPUdevice)
+                            assert mask.dim() == 2, f"Expected 2D mask, got {mask.dim()} dimensions."
                             _, _, _ = net.train_add_new_mask(
                                 inference_state=train_state,
                                 frame_idx=id,
                                 obj_id=ann_obj_id,
-                                mask=torch.zeros(imgs_tensor.shape[1:]).to(device=GPUdevice),
+                                mask=mask,
                             )
 
-                video_segments = {}  # video_segments contains the per-frame segmentation results
+                video_segments = {}  # video_segments contains the per-frame segmentation
             
                 for out_frame_idx, out_obj_ids, out_mask_logits in net.train_propagate_in_video(train_state, start_frame_idx=0):
                     video_segments[out_frame_idx] = {
@@ -142,7 +156,7 @@ def train_sam(args, net: nn.Module, optimizer1, optimizer2, train_loader,
                     for ann_obj_id in obj_list:
                         pred = video_segments[id][ann_obj_id]
                         pred = pred.unsqueeze(0)
-                        # pred = torch.sigmoid(pred)
+                        pred = torch.sigmoid(pred)
                         try:
                             mask = mask_dict[id][ann_obj_id].to(dtype = torch.float32, device = GPUdevice)
                         except KeyError:
@@ -164,6 +178,7 @@ def train_sam(args, net: nn.Module, optimizer1, optimizer2, train_loader,
                             plt.savefig(f'./temp/train/{name[0]}/{id}/{obj_list.index(ann_obj_id)}.png', bbox_inches='tight', pad_inches=0)
                             plt.close()
                         obj_loss = lossfunc(pred, mask)
+                        print("OBJECCT LOSS", obj_loss)
                         loss += obj_loss.item()
                         if id in prompt_frame_id:
                             prompt_loss += obj_loss
@@ -180,10 +195,14 @@ def train_sam(args, net: nn.Module, optimizer1, optimizer2, train_loader,
                 if prompt_freq > 1:
                     epoch_non_prompt_loss += non_prompt_loss.item()
 
-                # nn.utils.clip_grad_value_(net.parameters(), 0.1)
+                #nn.utils.clip_grad_value_(net.parameters(), 0.1)
+                nn.utils.clip_grad_norm_(net.parameters(), max_norm=1.0)
                 if non_prompt_loss is not int and optimizer2 is not None and prompt_freq > 1:
-                    non_prompt_loss.backward(retain_graph=True)
-                    optimizer2.step()
+                    eps = 1e-6
+                    if non_prompt_loss.isnan(): 
+                        loss=eps
+                        non_prompt_loss.backward(retain_graph=True)
+                        optimizer2.step()
                 if optimizer1 is not None:
                     prompt_loss.backward()
                     optimizer1.step()
@@ -214,6 +233,8 @@ def validation_sam(args, val_loader, epoch, net: nn.Module, clean_dir=True):
 
     with tqdm(total=n_val, desc='Validation round', unit='batch', leave=False) as pbar:
         for pack in val_loader:
+            patient_id = pack['image_meta_dict']
+            print("Patient ID:", patient_id)
             imgs_tensor = pack['image']
             mask_dict = pack['label']
             if prompt == 'click':
@@ -221,10 +242,10 @@ def validation_sam(args, val_loader, epoch, net: nn.Module, clean_dir=True):
                 point_labels_dict = pack['p_label']
             elif prompt == 'bbox':
                 bbox_dict = pack['bbox']
-            if len(imgs_tensor.size()) == 5:
+            if len(imgs_tensor.shape) == 5:
                 imgs_tensor = imgs_tensor.squeeze(0)
-            frame_id = list(range(imgs_tensor.size(0)))
-            
+            frame_id = list(range(imgs_tensor.size(0)))        
+            imgs_tensor = imgs_tensor.to(dtype=torch.float32, device=GPUdevice)
             train_state = net.val_init_state(imgs_tensor=imgs_tensor)
             prompt_frame_id = list(range(0, len(frame_id), prompt_freq))
             obj_list = []
@@ -282,22 +303,34 @@ def validation_sam(args, val_loader, epoch, net: nn.Module, clean_dir=True):
                     for ann_obj_id in obj_list:
                         pred = video_segments[id][ann_obj_id]
                         pred = pred.unsqueeze(0)
-                        # pred = torch.sigmoid(pred)
+                        #pred = torch.sigmoid(pred)
+                        print(f"Raw model predictions: min={pred.min().item()}, max={pred.max().item()}, mean={pred.mean().item()}")
                         try:
                             mask = mask_dict[id][ann_obj_id].to(dtype = torch.float32, device = GPUdevice)
                         except KeyError:
                             mask = torch.zeros_like(pred).to(device=GPUdevice)
                         if args.vis:
+                            import cv2
                             os.makedirs(f'./temp/val/{name[0]}/{id}', exist_ok=True)
-                            fig, ax = plt.subplots(1, 3)
-                            ax[0].imshow(imgs_tensor[id, :, :, :].cpu().permute(1, 2, 0).numpy().astype(int))
-                            ax[0].axis('off')
-                            ax[1].imshow(pred[0, 0, :, :].cpu().numpy() > 0.5, cmap='gray')
-                            ax[1].axis('off')
-                            ax[2].imshow(mask[0, 0, :, :].cpu().numpy(), cmap='gray')
-                            ax[2].axis('off')
-                            plt.savefig(f'./temp/val/{name[0]}/{id}/{ann_obj_id}.png', bbox_inches='tight', pad_inches=0)
-                            plt.close()
+                            cv2.imwrite(f'./temp/val/{name[0]}/{id}/{ann_obj_id}_image.png', imgs_tensor[id, :, :, :].cpu().permute(1, 2, 0).numpy().astype(int))
+                            cv2.imwrite(f'./temp/val/{name[0]}/{id}/{ann_obj_id}_pred.png', 255*(pred[0, 0, :, :].cpu().numpy() > 0.5))
+                            cv2.imwrite(f'./temp/val/{name[0]}/{id}/{ann_obj_id}_gt.png', 255*(mask[0, 0, :, :].cpu().numpy()))
+
+#                             fig, ax = plt.subplots()
+#                             ax.imshow(imgs_tensor[id, :, :, :].cpu().permute(1, 2, 0).numpy().astype(int))
+#                             ax.axis('off')
+#                             plt.savefig(f'./temp/val/{name[0]}/{id}/{ann_obj_id}_image.png', bbox_inches='tight', pad_inches=0)
+#                             plt.close()
+#                             fig, ax = plt.subplots()
+#                             ax.imshow(255*(pred[0, 0, :, :].cpu().numpy() > 0.5), cmap='gray')
+#                             ax.axis('off')
+#                             plt.savefig(f'./temp/val/{name[0]}/{id}/{ann_obj_id}_pred.png', bbox_inches='tight', pad_inches=0)
+#                             plt.close()
+#                             fig, ax = plt.subplots()
+#                             ax.imshow(255*(mask[0, 0, :, :].cpu().numpy()), cmap='gray')
+#                             ax.axis('off')
+#                             plt.savefig(f'./temp/val/{name[0]}/{id}/{ann_obj_id}_gt.png', bbox_inches='tight', pad_inches=0)
+#                             plt.close()
                         loss += lossfunc(pred, mask)
                         temp = eval_seg(pred, mask, threshold)
                         pred_iou += temp[0]

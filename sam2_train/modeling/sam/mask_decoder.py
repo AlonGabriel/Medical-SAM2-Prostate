@@ -223,16 +223,19 @@ class MaskDecoder(nn.Module):
             feat_s0, feat_s1 = high_res_features
             upscaled_embedding = act1(ln1(dc1(src) + feat_s1))
             upscaled_embedding = act2(dc2(upscaled_embedding) + feat_s0)
-
+        
         hyper_in_list: List[torch.Tensor] = []
         for i in range(self.num_mask_tokens):
             hyper_in_list.append(
                 self.output_hypernetworks_mlps[i](mask_tokens_out[:, i, :])
             )
         hyper_in = torch.stack(hyper_in_list, dim=1)
+        hyper_in = torch.nan_to_num(hyper_in, nan=0.0, posinf=1e4, neginf=-1e4)
+        upscaled_embedding = torch.nan_to_num(upscaled_embedding, nan=0.0, posinf=1e4, neginf=-1e4)
+        hyper_in = (hyper_in - hyper_in.mean()) / (hyper_in.std() + 1e-7)
+        upscaled_embedding = (upscaled_embedding - upscaled_embedding.mean()) / (upscaled_embedding.std() + 1e-7)
         b, c, h, w = upscaled_embedding.shape
         masks = (hyper_in @ upscaled_embedding.view(b, c, h * w)).view(b, -1, h, w)
-
         # Generate mask quality predictions
         iou_pred = self.iou_prediction_head(iou_token_out)
         if self.pred_obj_scores:

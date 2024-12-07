@@ -143,12 +143,15 @@ def eval_seg(pred,true_mask_p,threshold):
     pred: [b,2,h,w]
     '''
     b, c, h, w = pred.size()
+    print(f"Prediction sum: {pred.sum()}, Ground truth sum: {true_mask_p.sum()}") #ALON
     if c == 2:
         iou_d, iou_c, disc_dice, cup_dice = 0,0,0,0
         for th in threshold:
 
             gt_vmask_p = (true_mask_p > th).float()
             vpred = (pred > th).float()
+            print(f"Threshold: {th}, Predicted non-zero pixels: {vpred.sum()}, Ground truth non-zero pixels: {gt_vmask_p.sum()}") #ALON
+
             vpred_cpu = vpred.cpu()
             disc_pred = vpred_cpu[:,0,:,:].numpy().astype('int32')
             cup_pred = vpred_cpu[:,1,:,:].numpy().astype('int32')

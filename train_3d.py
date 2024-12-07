@@ -22,15 +22,30 @@ def main():
 
     args = cfg.parse_args()
 
-    GPUdevice = torch.device('cuda', args.gpu_device)
+    # Parse distributed GPUs
+    if args.distributed and args.distributed.lower() != "none":
+        gpu_ids = [int(gpu_id) for gpu_id in args.distributed.split(",")]
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, gpu_ids))
+        world_size = len(gpu_ids)
+        print(f"Using GPUs: {gpu_ids}")
+    else:
+        gpu_ids = [0]  # Default to GPU 0
+        world_size = 1
+        print("Using single GPU mode (default GPU 0).")
 
-    net = get_network(args, args.net, use_gpu=args.gpu, gpu_device=GPUdevice, distribution = args.distributed)
+    # Initialize model
+    GPUdevice = torch.device(f"cuda:{gpu_ids[0]}")
+    net = get_network(args, args.net, use_gpu=args.gpu, gpu_device=GPUdevice, distribution=args.distributed)
     net.to(dtype=torch.bfloat16)
-    if args.pretrain:
-        print(args.pretrain)
-        weights = torch.load(args.pretrain)
-        net.load_state_dict(weights,strict=False)
 
+    if world_size > 1:
+        # Wrap the model with DataParallel for multiple GPUs
+        net = torch.nn.DataParallel(net, device_ids=gpu_ids)
+
+    if args.pretrain:
+        print(f"Loading pretrained weights from {args.pretrain}")
+        weights = torch.load(args.pretrain)
+        net.load_state_dict(weights, strict=False)
     sam_layers = (
                   []
                 #   + list(net.image_encoder.parameters())
@@ -66,19 +81,7 @@ def main():
     logger.info(args)
 
     nice_train_loader, nice_test_loader, nice_val_loader = get_dataloader(args)
-    for pack in nice_train_loader:
-        images = pack['image']
-        labels = pack['label']
-        if 'bbox' in pack:
-            bbox = pack['bbox']
-
-        # Debug print to verify shapes and content
-        print(f"Images shape: {images.shape}")
-        print(f"Labels: {[k for k in labels.keys()]}")
-        if 'bbox' in pack:
-            print(f"BBox keys: {[k for k in bbox.keys()]}")
-
-        break  
+  
     '''checkpoint path and tensorboard'''
     checkpoint_path = os.path.join(settings.CHECKPOINT_PATH, args.net, settings.TIME_NOW)
     #use tensorboard
@@ -105,6 +108,7 @@ def main():
         net.train()
         time_start = time.time()
         loss, prompt_loss, non_prompt_loss = function.train_sam(args, net, optimizer1, optimizer2, nice_train_loader, epoch)
+        
         logger.info(f'Train loss: {loss}, {prompt_loss}, {non_prompt_loss} || @ epoch {epoch}.')
         time_end = time.time()
         print('time_for_training ', time_end - time_start)
@@ -130,7 +134,7 @@ def main():
                                     for m, v in v_dict.items():
                                         if isinstance(v, torch.Tensor):
                                             labels[k][m] = v.cuda()
-                    outputs = net(images)
+                    outputs = net.propagate_in_video(images)
             torch.save({'model': net.state_dict()}, os.path.join(args.path_helper['ckpt_path'], 'latest_epoch.pth'))
 
     writer.close()
