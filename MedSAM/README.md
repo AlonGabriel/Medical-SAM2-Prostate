@@ -3,7 +3,9 @@
 This branch focuses on using the pre-trained MedSAM model to segment the prostate on the Prostate-MRI-US-Biopsy dataset and fine-tuning MedSAM to improve segmentation performance.
 
 **Repository Structure**
+
 **- MedSAM Folder**
+
 The MedSAM folder contains the files for the MedSAM model. This model is sourced from: https://github.com/bowang-lab/MedSAM
 
 **- Key Scripts**
