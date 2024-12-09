@@ -19,7 +19,7 @@ This script fine-tunes the MedSAM model on the Prostate-MRI-US-Biopsy dataset to
 **`Compare_mask.py`**  
 This script compares the MedSAM segmentation results with the ground truth masks to evaluate consistency and performance.
 
-#### - Preprocessing Folder
+**`Preprocessing Folder`**  
 
 The Preprocessing folder contains scripts for dataset preprocessing:
 
