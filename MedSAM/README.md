@@ -28,3 +28,7 @@ a. **`DCM_to_NRRD.py`**
 
 b. **`convert_STL_labelmap_slicer_script.py`**  
    Uses the NRRD files generated in the previous step as reference images to convert STL format mask files into NIfTI (nii.gz) format. This ensures spatial correspondence between images and masks at each slice.
+
+
+
+All original code remains under the original license.
