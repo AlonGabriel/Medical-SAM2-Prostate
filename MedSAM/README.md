@@ -1,4 +1,4 @@
-******Prostate MRI Segmentation with MedSAM******
+<font size="6" color="blue"><b>Prostate MRI Segmentation with MedSAM</b></font>
 
 This branch focuses on using the pre-trained MedSAM model to segment the prostate on the Prostate-MRI-US-Biopsy dataset and fine-tuning MedSAM to improve segmentation performance.
 
